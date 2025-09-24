@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Free Online Document Editor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="p-4 bg-blue-600 text-white flex justify-between items-center">
+    <h1 class="text-xl font-bold">Free Online Document Editor</h1>
+    <button id="themeToggle" class="px-4 py-2 bg-gray-800 rounded-lg">Dark Mode</button>
+  </header>
+
+  <!-- Advertisement Section -->
+  <section class="p-4 bg-yellow-100 text-center">
+    <!-- 🟢 PLACEHOLDER FOR ADS -->
+    <!-- Yahan aap advertisement code (Google AdSense, Banner, etc.) insert karenge -->
+    <div class="border-2 border-dashed border-yellow-400 p-6">
+      <p class="text-gray-600">Advertisement Space</p>
+    </div>
+  </section>
+
+  <!-- Tabs -->
+  <nav class="flex justify-center space-x-4 mt-4">
+    <button onclick="showTab('word')" class="tab-btn px-4 py-2 bg-blue-500 text-white rounded">Word</button>
+    <button onclick="showTab('excel')" class="tab-btn px-4 py-2 bg-green-500 text-white rounded">Excel</button>
+    <button onclick="showTab('pdf')" class="tab-btn px-4 py-2 bg-red-500 text-white rounded">PDF</button>
+  </nav>
+
+  <!-- Word Section -->
+  <section id="word" class="tab-content p-4">
+    <input type="file" id="wordUpload" accept=".docx" class="mb-4">
+    <div id="wordEditor" style="height: 300px;" class="bg-white dark:bg-gray-800"></div>
+    <button id="saveWord" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded">Download Word</button>
+  </section>
+
+  <!-- Excel Section -->
+  <section id="excel" class="tab-content p-4 hidden">
+    <input type="file" id="excelUpload" accept=".xlsx" class="mb-4">
+    <select id="sheetSelector" class="mb-4 p-2 border rounded"></select>
+    <table id="excelTable" class="border w-full"></table>
+    <button id="saveExcel" class="mt-2 px-4 py-2 bg-green-600 text-white rounded">Download Excel</button>
+  </section>
+
+  <!-- PDF Section -->
+  <section id="pdf" class="tab-content p-4 hidden">
+    <input type="file" id="pdfUpload" accept=".pdf" class="mb-4">
+    <canvas id="pdfCanvas" class="border mx-auto block"></canvas>
+    <div class="flex justify-center space-x-2 mt-2">
+      <button id="prevPage" class="px-3 py-1 bg-gray-500 text-white rounded">Prev</button>
+      <button id="nextPage" class="px-3 py-1 bg-gray-500 text-white rounded">Next</button>
+      <span id="pageInfo" class="px-3"></span>
+    </div>
+    <div class="mt-4">
+      <input type="text" id="pdfText" placeholder="Add text to PDF" class="p-2 border rounded w-1/2">
+      <button id="addText" class="px-4 py-2 bg-red-600 text-white rounded">Add Text</button>
+    </div>
+    <button id="savePdf" class="mt-4 px-4 py-2 bg-red-600 text-white rounded">Download PDF</button>
+  </section>
+
+  <script>
+    // Dark mode toggle
+    const themeToggle = document.getElementById("themeToggle");
+    themeToggle.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+      themeToggle.textContent = document.documentElement.classList.contains("dark")
+        ? "Light Mode"
+        : "Dark Mode";
+    });
+
+    // Tabs
+    function showTab(id) {
+      document.querySelectorAll(".tab-content").forEach(sec => sec.classList.add("hidden"));
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    // Word Editor
+    const quill = new Quill("#wordEditor", { theme: "snow" });
+    document.getElementById("wordUpload").addEventListener("change", async e => {
+      const file = e.target.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await window.mammoth.convertToHtml({ arrayBuffer });
+      quill.root.innerHTML = result.value;
+    });
+    document.getElementById("saveWord").addEventListener("click", () => {
+      const blob = new Blob([quill.root.innerHTML], { type: "application/msword" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "document.doc";
+      link.click();
+    });
+
+    // Excel Editor
+    let workbook;
+    document.getElementById("excelUpload").addEventListener("change", async e => {
+      const file = e.target.files[0];
+      const data = await file.arrayBuffer();
+      workbook = XLSX.read(data);
+      const selector = document.getElementById("sheetSelector");
+      selector.innerHTML = "";
+      workbook.SheetNames.forEach((name, i) => {
+        const opt = document.createElement("option");
+        opt.value = name; opt.textContent = name;
+        selector.appendChild(opt);
+        if (i === 0) loadSheet(name);
+      });
+    });
+    document.getElementById("sheetSelector").addEventListener("change", e => loadSheet(e.target.value));
+    function loadSheet(name) {
+      const sheet = workbook.Sheets[name];
+      const html = XLSX.utils.sheet_to_html(sheet);
+      document.getElementById("excelTable").innerHTML = html;
+    }
+    document.getElementById("saveExcel").addEventListener("click", () => {
+      const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], { type: "application/octet-stream" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "spreadsheet.xlsx";
+      link.click();
+    });
+
+    // PDF Viewer & Editor
+    let pdfDoc = null, pageNum = 1, canvas = document.getElementById("pdfCanvas"), ctx = canvas.getContext("2d"), pdfBytes;
+    document.getElementById("pdfUpload").addEventListener("change", async e => {
+      const file = e.target.files[0];
+      pdfBytes = await file.arrayBuffer();
+      pdfDoc = await pdfjsLib.getDocument(pdfBytes).promise;
+      renderPage(pageNum);
+    });
+    async function renderPage(num) {
+      const page = await pdfDoc.getPage(num);
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      document.getElementById("pageInfo").textContent = `${pageNum} / ${pdfDoc.numPages}`;
+    }
+    document.getElementById("prevPage").addEventListener("click", () => { if (pageNum > 1) renderPage(--pageNum); });
+    document.getElementById("nextPage").addEventListener("click", () => { if (pageNum < pdfDoc.numPages) renderPage(++pageNum); });
+
+    // Add Text to PDF
+    document.getElementById("addText").addEventListener("click", async () => {
+      const text = document.getElementById("pdfText").value;
+      if (!text || !pdfBytes) return;
+      const pdfDocLib = await PDFLib.PDFDocument.load(pdfBytes);
+      const pages = pdfDocLib.getPages();
+      const firstPage = pages[pageNum - 1];
+      const { width, height } = firstPage.getSize();
+      firstPage.drawText(text, { x: 50, y: height - 100, size: 20, color: PDFLib.rgb(1, 0, 0) });
+      pdfBytes = await pdfDocLib.save();
+      pdfDoc = await pdfjsLib.getDocument(pdfBytes).promise;
+      renderPage(pageNum);
+    });
+
+    // Save PDF
+    document.getElementById("savePdf").addEventListener("click", () => {
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "document.pdf";
+      link.click();
+    });
+  </script>
+</body>
+</html>
